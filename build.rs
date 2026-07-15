@@ -19,9 +19,58 @@ use std::path::PathBuf;
 /// `tgfx_app()`.
 const TGFX_APP_REL: &str = "touchgfx_project/Appli";
 
-/// Arm GNU Toolchain (same install the demos' TFLM build uses) — provides
-/// newlib for memcpy/memset etc. pulled in by the C++ code.
-const TOOLCHAIN_ROOT: &str = "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1";
+/// Flags that select the multilib variant. These must match what the C++ is
+/// actually compiled with, or the compiler would report libraries for a
+/// different float ABI / architecture than the objects we link against.
+const MULTILIB_SELECT_FLAGS: &[&str] = &[
+    "-march=armv8-m.main+fp.dp",
+    "-mthumb",
+    "-mfloat-abi=hard",
+    "-mfpu=fpv5-d16",
+];
+
+/// Add link-search paths for the Arm GNU Toolchain's newlib + libgcc, which
+/// the compiled C++ pulls in (memcpy/memset, soft-float helpers, the libstdc++
+/// bits cxx's runtime drags in).
+///
+/// Rather than hardcoding an install path — which also means hardcoding the
+/// gcc version and the `thumb/v8-m.main+dp/hard` multilib triple, all three of
+/// which break on a toolchain update or a different machine — ask the compiler
+/// itself with `-print-file-name`. It resolves the correct multilib for the
+/// flags above, so this follows whatever `arm-none-eabi-g++` cc has picked
+/// (PATH, or a CC/CXX override).
+fn add_toolchain_lib_search_paths(b: &cc::Build) {
+    let compiler = b.get_compiler();
+    let cc_path = compiler.path();
+
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    // libc/libm/libnosys come from newlib, libgcc from gcc — on some installs
+    // these live in different directories, so resolve each and de-duplicate.
+    for lib in ["libc.a", "libm.a", "libnosys.a", "libgcc.a"] {
+        let out = std::process::Command::new(cc_path)
+            .args(MULTILIB_SELECT_FLAGS)
+            .arg(format!("-print-file-name={lib}"))
+            .output()
+            .unwrap_or_else(|e| panic!("running {cc_path:?} -print-file-name={lib}: {e}"));
+
+        let printed = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let path = PathBuf::from(&printed);
+        // gcc echoes the bare filename back when it can't find the library.
+        assert!(
+            path.is_absolute() && path.is_file(),
+            "{cc_path:?} could not locate {lib} for {MULTILIB_SELECT_FLAGS:?} (got {printed:?}).\n\
+             Is the Arm GNU Toolchain (arm-none-eabi-g++) on PATH?"
+        );
+        let dir = path.parent().expect("library has a parent dir").to_path_buf();
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+
+    for dir in dirs {
+        println!("cargo:rustc-link-search=native={}", dir.display());
+    }
+}
 
 /// Absolute path to the vendored TouchGFX application, derived from the crate
 /// root. Uses forward slashes so it can be pasted into the `-I`/link flags
@@ -127,13 +176,9 @@ fn main() {
     println!("cargo:rustc-link-lib=static=touchgfx-float-abi-hard");
 
     // ── C runtime (newlib) for the C++ objects ────────────────────────────
-    // Multilib thumb/v8-m.main+dp/hard matches -mfpu=fpv5-d16 -mfloat-abi=hard.
-    println!(
-        "cargo:rustc-link-search=native={TOOLCHAIN_ROOT}/lib/gcc/arm-none-eabi/13.3.1/thumb/v8-m.main+dp/hard"
-    );
-    println!(
-        "cargo:rustc-link-search=native={TOOLCHAIN_ROOT}/arm-none-eabi/lib/thumb/v8-m.main+dp/hard"
-    );
+    // Ask the cross-compiler where its libraries actually are, rather than
+    // hardcoding an install path + gcc version + multilib triple.
+    add_toolchain_lib_search_paths(&b);
     println!("cargo:rustc-link-lib=c");
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=nosys");
