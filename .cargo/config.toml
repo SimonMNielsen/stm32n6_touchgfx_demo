@@ -1,0 +1,14 @@
+[target.thumbv8m.main-none-eabihf]
+# --connect-under-reset: required for STM32N6 — debug port is only accessible
+# during reset on this chip.  Works in both dev-boot mode and normal boot mode.
+runner = 'probe-rs run --chip STM32N657 --always-print-stacktrace --rtt-scan-memory'
+
+[build]
+target = "thumbv8m.main-none-eabihf"   # Cortex-M55 (ARMv8.1-M with FPU + MVE)
+
+[env]
+DEFMT_LOG = "info"
+
+[alias]
+tgfx-build = "build --bin touchgfx_demo"
+tgfx-run   = "run   --bin touchgfx_demo"
