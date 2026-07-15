@@ -2,25 +2,34 @@
 //!
 //! 1. Emits the RAM-app memory map (memory_ram.x) + linker args.
 //! 2. Compiles the TouchGFX application C++ (GUI screens, generated assets)
-//!    from the original STM32CubeIDE project, plus this project's C++ glue,
-//!    together with the cxx bridge.
-//! 3. Links the prebuilt TouchGFX core library (cortex_m7 hard-float build —
-//!    ARMv7E-M code, forward-compatible with the M55's ARMv8.1-M).
+//!    from the vendored project in `touchgfx_project/`, plus this project's
+//!    C++ glue, together with the cxx bridge.
+//! 3. Links the prebuilt TouchGFX core library (native Cortex-M55 build).
 
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
-/// Root of the TouchGFX STM32CubeIDE project (GUI + assets + framework).
-/// The TouchGFX application lives in the Appli half of the N6-native
-/// `touchgfx_2_rust_demo` project (800×480 RGB565, Cortex-M55 core lib,
-/// ferris/LED demo GUI; FSBL/Appli split).
-const TGFX_APP: &str = "C:/kode/Rust/touchgfx_2_rust_demo/Appli";
+/// The TouchGFX STM32CubeIDE project (GUI + assets + framework), vendored into
+/// this repo at `touchgfx_project/`. The application lives in the Appli half of
+/// the FSBL/Appli split (800×480 RGB565, Cortex-M55 core lib, ferris/LED demo).
+///
+/// Relative to CARGO_MANIFEST_DIR so the build is location-independent — see
+/// `tgfx_app()`.
+const TGFX_APP_REL: &str = "touchgfx_project/Appli";
 
 /// Arm GNU Toolchain (same install the demos' TFLM build uses) — provides
 /// newlib for memcpy/memset etc. pulled in by the C++ code.
 const TOOLCHAIN_ROOT: &str = "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1";
+
+/// Absolute path to the vendored TouchGFX application, derived from the crate
+/// root. Uses forward slashes so it can be pasted into the `-I`/link flags
+/// unchanged on Windows.
+fn tgfx_app() -> String {
+    let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+    format!("{}/{}", manifest.replace('\\', "/"), TGFX_APP_REL)
+}
 
 fn add_cpp_dir(build: &mut cc::Build, dir: &str) {
     let mut found = false;
@@ -51,19 +60,22 @@ fn main() {
     println!("cargo:rerun-if-changed=touchgfx_ctors.x");
     println!("cargo:rerun-if-changed=cpp");
     println!("cargo:rerun-if-changed=src/bridge.rs");
-    // Recompile when the (external) TouchGFX GUI user code changes — the
-    // Screen1View bounce/LED logic lives there, outside this crate.
-    println!("cargo:rerun-if-changed={TGFX_APP}/TouchGFX/gui/src");
-    println!("cargo:rerun-if-changed={TGFX_APP}/TouchGFX/gui/include");
+    let tgfx_app = tgfx_app();
+    let tg = format!("{tgfx_app}/TouchGFX");
 
-    let tg = format!("{TGFX_APP}/TouchGFX");
+    // Recompile when the TouchGFX GUI user code changes — the Screen1View
+    // bounce/LED logic lives there, and the Designer rewrites these files.
+    println!("cargo:rerun-if-changed={tg}/gui/src");
+    println!("cargo:rerun-if-changed={tg}/gui/include");
+    // ...and when the Designer regenerates widgets/assets/texts.
+    println!("cargo:rerun-if-changed={tg}/generated");
 
     // ── TouchGFX C++ (bridge + glue + application) ────────────────────────
     let mut b = cxx_build::bridge("src/bridge.rs");
     b.cpp(true)
         .std("c++14")
         .include("cpp")
-        .include(format!("{TGFX_APP}/Middlewares/ST/touchgfx/framework/include"))
+        .include(format!("{tgfx_app}/Middlewares/ST/touchgfx/framework/include"))
         // For CortexMMCUInstrumentation.hpp (MCU-load measurement). Only that
         // one file is taken from the project's target/ dir — the rest of it is
         // ST-HAL/NemaGFX bound and replaced by cpp/.
@@ -110,7 +122,7 @@ fn main() {
 
     // ── TouchGFX core library (native Cortex-M55 build) ──────────────────
     println!(
-        "cargo:rustc-link-search=native={TGFX_APP}/Middlewares/ST/touchgfx/lib/core/cortex_m55/gcc"
+        "cargo:rustc-link-search=native={tgfx_app}/Middlewares/ST/touchgfx/lib/core/cortex_m55/gcc"
     );
     println!("cargo:rustc-link-lib=static=touchgfx-float-abi-hard");
 

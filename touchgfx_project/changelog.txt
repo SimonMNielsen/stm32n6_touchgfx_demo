@@ -1,0 +1,11 @@
+3.0.1
+- Update to STM32CubeMX 6.17.0
+
+3.0.0
+First released version
+- TouchGFX 4.26.0
+- STM32CubeMX 6.16.0
+- Firmware FW_N6 V1.3.0
+- Support for STM32CubeIDE
+- Support for EWARM
+- Support for "Run Target" in TouchGFX Designer

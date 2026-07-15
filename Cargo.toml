@@ -7,9 +7,10 @@ license = "MIT OR Apache-2.0"
 # TouchGFX (C++ GUI framework) running on Rust/embassy via the `cxx` bridge.
 #
 # The TouchGFX application (GUI screens, generated assets, framework library)
-# comes from the STM32CubeIDE project at C:/kode/Rust/Touchgfx_on_rust_no_rtos
-# (a 480x272 16bpp no-RTOS TBS). build.rs compiles its C++ sources; all the
-# board glue (LTDC, touch, vsync, framebuffers) is Rust through the N6 BSP.
+# is vendored in `touchgfx_project/` — the N6-native 800x480 RGB565 demo.
+# build.rs compiles its C++ sources and links the Cortex-M55 TouchGFX core
+# library; all board access (LTDC, touch, vsync, framebuffers, ChromART/DMA2D,
+# LEDs) is Rust through the N6 BSP + embassy, with no ST HAL.
 
 [dependencies]
 # NOTE: local paths to all embassy modules to avoid version mismatch issues

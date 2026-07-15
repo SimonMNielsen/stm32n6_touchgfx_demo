@@ -1,2 +1,3 @@
 /target
 Cargo.lock
+/touchgfx_project/Appli/TouchGFX/target/generated

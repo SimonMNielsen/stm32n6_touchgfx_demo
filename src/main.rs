@@ -1,18 +1,20 @@
 //! TouchGFX on Rust — STM32N6570-DK.
 //!
-//! The C++ TouchGFX application from `C:/kode/Rust/Touchgfx_on_rust_no_rtos`
-//! (480×272 16bpp, no RTOS) runs on this board with **all** hardware access
-//! going through the Rust N6 BSP:
+//! The C++ TouchGFX application vendored in `touchgfx_project/` (800×480
+//! RGB565, no RTOS) runs on this board with **all** hardware access going
+//! through the Rust N6 BSP + embassy — no ST HAL anywhere:
 //!
-//!   - LTDC / panel / backlight  → `bsp_stm32n6570::display` (the 480×272 GUI
-//!     is windowed in the centre of the 800×480 panel)
-//!   - framebuffer double-buffer swap → cxx bridge → embassy PAC
+//!   - LTDC / panel / backlight  → `bsp_stm32n6570::display`, full-screen
+//!   - framebuffers (PSRAM) + double-buffer swap → cxx bridge → embassy PAC
 //!   - vsync pacing → embassy ticker task on the HIGH interrupt executor
-//!   - touch → GT911 driver polled by a HIGH task, sampled over the bridge
+//!   - touch → GT911, sampled from thread mode over the bridge
+//!   - ChromART (DMA2D) blitting → `dma2d.rs`, driven by TouchGFX's
+//!     `DMA_Interface` (cpp/N6ChromArtDMA)
+//!   - LEDs → `led_service` task (green blink rate / red on-off from the GUI)
 //!
 //! Thread mode is donated to TouchGFX: `tgfx_task_entry()` never returns and
 //! blocks in `waitForVSync` (a `wfe` loop), while the HIGH-priority
-//! InterruptExecutor keeps the ticker/touch/blink tasks running.
+//! InterruptExecutor keeps the ticker/LED tasks running.
 #![no_std]
 #![no_main]
 

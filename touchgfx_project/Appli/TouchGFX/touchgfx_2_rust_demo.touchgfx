@@ -1,0 +1,358 @@
+{
+  "Application": {
+    "Screens": [
+      {
+        "Name": "Screen1",
+        "Components": [
+          {
+            "Type": "Box",
+            "Name": "box1",
+            "X": 3,
+            "Width": 800,
+            "Height": 480,
+            "Color": {
+              "Red": 255,
+              "Green": 255,
+              "Blue": 255
+            }
+          },
+          {
+            "Type": "BoxWithBorder",
+            "Name": "boxWithBorder1",
+            "X": 6,
+            "Y": 45,
+            "Width": 791,
+            "Height": 334,
+            "Color": {
+              "Red": 255,
+              "Green": 255,
+              "Blue": 255
+            },
+            "BorderSize": 5
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_6_1",
+            "X": 565,
+            "Y": 305,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "TextArea",
+            "Name": "textArea1",
+            "X": 88,
+            "Y": 7,
+            "Width": 625,
+            "Height": 24,
+            "TextId": "__SingleUse_U5U3",
+            "TextRotation": "0",
+            "AutoSize": true
+          },
+          {
+            "Type": "TextArea",
+            "Name": "textArea1_1",
+            "X": 21,
+            "Y": 402,
+            "Width": 259,
+            "Height": 24,
+            "TextId": "__SingleUse_748P",
+            "TextRotation": "0",
+            "AutoSize": true
+          },
+          {
+            "Type": "Slider",
+            "Name": "slider1_greenLED",
+            "X": 21,
+            "Y": 440,
+            "Width": 332,
+            "Height": 32,
+            "IsHorizontalSlider": true,
+            "BackgroundUnselected": "__generated\\alternate_theme_images_widgets_slider_horizontal_thick_track_medium.png",
+            "BackgroundSelected": "__generated\\alternate_theme_images_widgets_slider_horizontal_thick_filler_medium.png",
+            "Indicator": "__generated\\alternate_theme_images_widgets_slider_horizontal_thick_round_active.png",
+            "BackgroundX": 16,
+            "BackgroundY": 11,
+            "IndicatorMax": 300,
+            "ValueMax": 100
+          },
+          {
+            "Type": "ToggleButton",
+            "Name": "toggleButton_redLED",
+            "X": 651,
+            "Y": 421,
+            "Width": 110,
+            "Height": 50,
+            "Pressed": "__generated\\alternate_theme_images_widgets_togglebutton_medium_rounded_on_normal.png",
+            "Released": "__generated\\alternate_theme_images_widgets_togglebutton_medium_rounded_off_light.png",
+            "Preset": "alternate_theme\\presets\\togglebutton\\medium\\rounded.json"
+          },
+          {
+            "Type": "ToggleButton",
+            "Name": "toggleButton_chromeart",
+            "X": 504,
+            "Y": 422,
+            "Width": 110,
+            "Height": 50,
+            "Pressed": "__generated\\alternate_theme_images_widgets_togglebutton_medium_rounded_on_normal.png",
+            "Released": "__generated\\alternate_theme_images_widgets_togglebutton_medium_rounded_off_light.png",
+            "Preset": "alternate_theme\\presets\\togglebutton\\medium\\rounded.json"
+          },
+          {
+            "Type": "TextArea",
+            "Name": "textArea2",
+            "X": 660,
+            "Y": 390,
+            "Width": 93,
+            "Height": 24,
+            "TextId": "__SingleUse_8J1S",
+            "TextRotation": "0",
+            "Color": {
+              "Red": 8,
+              "Green": 5,
+              "Blue": 5
+            },
+            "AutoSize": true
+          },
+          {
+            "Type": "TextArea",
+            "Name": "ChromeART",
+            "X": 498,
+            "Y": 390,
+            "Width": 126,
+            "Height": 24,
+            "TextId": "__SingleUse_EJ0Q",
+            "TextRotation": "0",
+            "Color": {
+              "Red": 8,
+              "Green": 5,
+              "Blue": 5
+            },
+            "AutoSize": true
+          },
+          {
+            "Type": "TextArea",
+            "Name": "textArea3",
+            "X": 391,
+            "Y": 390,
+            "Width": 50,
+            "Height": 24,
+            "TextId": "__SingleUse_U5E0",
+            "TextRotation": "0",
+            "AutoSize": true
+          },
+          {
+            "Type": "TextArea",
+            "Name": "textArea3_CpuUse",
+            "X": 391,
+            "Y": 428,
+            "Width": 57,
+            "Height": 28,
+            "TextId": "__SingleUse_8313",
+            "TextRotation": "0",
+            "Wildcard1": {
+              "TextId": "cpuuse",
+              "UseBuffer": true,
+              "BufferSize": 4
+            }
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo",
+            "X": 81,
+            "Y": 111,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_1",
+            "X": 131,
+            "Y": 250,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_8",
+            "X": 274,
+            "Y": 305,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_7",
+            "X": 631,
+            "Y": 195,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_2",
+            "X": 539,
+            "Y": 103,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_3",
+            "X": 342,
+            "Y": 68,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_4",
+            "X": 392,
+            "Y": 208,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo",
+            "X": 150,
+            "Y": 72,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_1",
+            "X": 245,
+            "Y": 172,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_2",
+            "X": 42,
+            "Y": 321,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_3",
+            "X": 659,
+            "Y": 72,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_4",
+            "X": 676,
+            "Y": 277,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_5",
+            "X": 498,
+            "Y": 183,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_6",
+            "X": 34,
+            "Y": 189,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_7",
+            "X": 431,
+            "Y": 300,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          }
+        ],
+        "Interactions": []
+      }
+    ],
+    "CustomContainerDefinitions": [],
+    "Name": "touchgfx_2_rust_demo",
+    "Resolution": {
+      "Width": 800,
+      "Height": 480
+    },
+    "SelectedColorDepth": 16,
+    "StartupScreenName": "Screen1",
+    "SelectedStartupLanguage": "GB",
+    "TouchGfxPath": "../Middlewares/ST/touchgfx",
+    "UIPath": ".",
+    "AvailableColorDepths": [
+      16
+    ],
+    "AvailableLCDs": {
+      "16": "LCDGPU2D"
+    },
+    "AvailableSections": [
+      "ExtFlashSection",
+      "IntFlashSection"
+    ],
+    "AvailableResolutions": [
+      {
+        "Width": 800,
+        "Height": 480
+      }
+    ],
+    "PhysicalButtons": [],
+    "GenerateAssetsCommand": "make -f simulator/gcc/Makefile assets -j8",
+    "GenerateAssetsCommandOverride": "make -f simulator/gcc/Makefile assets -j8",
+    "PostGenerateCommand": "touchgfx update_project --project-file=simulator/msvs/Application.vcxproj",
+    "PostGenerateTargetCommand": "touchgfx update_project",
+    "CompileSimulatorCommand": "make -f simulator/gcc/Makefile -j8",
+    "RunSimulatorCommand": "build\\bin\\simulator.exe",
+    "CompileTargetCommandOverride": "make -f ../../gcc/Makefile -j8",
+    "FlashTargetCommandOverride": "make -f ../../gcc/Makefile flash",
+    "FlashTargetIntCommandOverride": "make -f ../../gcc/Makefile intflash",
+    "LandscapeSkinX": 0,
+    "LandscapeSkinY": 0,
+    "PortraitSkinX": 0,
+    "PortraitSkinY": 0,
+    "DisplayOrientation": "Landscape",
+    "Family": "STM32N6",
+    "SubFamily": "STM32N6x7",
+    "Toolchain": "STM32CubeIDE",
+    "Platform": "m55",
+    "ProjectFile": "../../STM32N6570-DK-FreeRTOS.ioc",
+    "OptionalComponentsRoot": "../Middlewares/ST/touchgfx_components",
+    "OptionalComponents": [
+      "GPU2D"
+    ],
+    "AdditionalFeatures": [
+      "GPU2DVector",
+      "VectorFonts",
+      "Video"
+    ]
+  },
+  "Version": "4.26.0",
+  "CreatedBy": "4.26.0"
+}
