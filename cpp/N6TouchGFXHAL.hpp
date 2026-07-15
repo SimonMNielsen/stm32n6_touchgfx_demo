@@ -21,10 +21,15 @@ public:
 
     void initialize();
 
-    // Interrupt management is owned by Rust/embassy — nothing to do here.
-    virtual void configureInterrupts() {}
-    virtual void enableInterrupts() {}
-    virtual void disableInterrupts() {}
+    // These gate the ChromART blit-complete IRQ. TouchGFX brackets its
+    // blit-queue updates with disable/enableInterrupts, so these MUST really
+    // mask the DMA2D line — leaving them as no-ops lets the ISR pop from the
+    // queue while thread mode is pushing to it.
+    virtual void configureInterrupts();
+    virtual void enableInterrupts();
+    virtual void disableInterrupts();
+
+    // Frame pacing comes from the Rust vsync ticker, not an LTDC line IRQ.
     virtual void enableLCDControllerInterrupt() {}
 
 protected:

@@ -21,6 +21,21 @@ void N6TouchGFXHAL::initialize()
     setAnimationStorage((void*)(uintptr_t)rust_anim_addr());
 }
 
+void N6TouchGFXHAL::configureInterrupts()
+{
+    rust_dma2d_configure_irq();
+}
+
+void N6TouchGFXHAL::enableInterrupts()
+{
+    rust_dma2d_enable_irq();
+}
+
+void N6TouchGFXHAL::disableInterrupts()
+{
+    rust_dma2d_disable_irq();
+}
+
 uint16_t* N6TouchGFXHAL::getTFTFrameBuffer() const
 {
     return (uint16_t*)(uintptr_t)rust_get_visible_framebuffer();

@@ -27,7 +27,24 @@ void OSWrappers::signalRenderingDone() {}
 
 void OSWrappers::waitForVSync()
 {
+    // This is the GUI's idle: thread mode sleeps in `wfe` here until the next
+    // vsync tick. TouchGFX measures MCU load by having the *idle* path bracket
+    // itself with setMCUActive(false/true) — in ST's reference that's the
+    // FreeRTOS idle hook. With no RTOS, nothing else can do it, and without
+    // these two calls cc_consumed never accumulates and the load reads a
+    // constant 100 %.
+    HAL* hal = HAL::getInstance();
+    if (hal != 0)
+    {
+        hal->setMCUActive(false); // idle begins
+    }
+
     rust_wait_for_vsync();
+
+    if (hal != 0)
+    {
+        hal->setMCUActive(true); // idle ends
+    }
 }
 
 void OSWrappers::taskDelay(uint16_t ms)

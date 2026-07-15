@@ -19,6 +19,7 @@
 extern crate alloc;
 
 mod bridge;
+mod dma2d;
 
 use core::sync::atomic::Ordering;
 
@@ -80,6 +81,15 @@ fn main() -> ! {
     // Heap first (cxx alloc support) — before anything can allocate.
     unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) }
 
+    // DWT cycle counter — TouchGFX's CortexMMCUInstrumentation reads CYCCNT
+    // (0xE0001004) raw to compute the MCU load %, but its init() is empty: the
+    // counter has to be turned on here or the load always reads 0.
+    {
+        let mut cp = unsafe { cortex_m::Peripherals::steal() };
+        cp.DCB.enable_trace();
+        cp.DWT.enable_cycle_counter();
+    }
+
     // Clocks + embassy time driver.
     let p = bsp::clock::rcc_setup::stm32n6570_init();
     info!("clock + time driver up");
@@ -120,7 +130,12 @@ fn main() -> ! {
     embassy_stm32::pac::RCC.ahb4enr().modify(|w| w.set_crcen(true));
     cortex_m::asm::dsb();
 
-    info!("MPU + SRAM banks + VddIO4 + CRC clock ready");
+    // ChromART (DMA2D): clock + clean IRQ state. TouchGFX's N6ChromArtDMA
+    // drives it; the RIF promotion for the DMA2D bus master is already done by
+    // the BSP display init. The NVIC line stays masked until TouchGFX's
+    // HAL::enableInterrupts() in taskEntry.
+    dma2d::init();
+    info!("MPU + SRAM banks + VddIO4 + CRC + ChromART(DMA2D) ready");
 
     // ── PSRAM (XSPI1) — holds the 800×480 framebuffers + newlib heap ────────
     // Must be up before the framebuffers are cleared and before the C++ static

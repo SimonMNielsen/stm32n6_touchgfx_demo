@@ -63,6 +63,10 @@ pub mod ffi {
 
         /// TouchGFX main loop — never returns.
         fn tgfx_task_entry();
+
+        /// Called from the DMA2D ISR: tells TouchGFX the blit finished so it
+        /// can start the next one in its queue.
+        fn tgfx_signal_dma_irq();
     }
 
     extern "Rust" {
@@ -79,10 +83,101 @@ pub mod ffi {
         fn rust_get_visible_framebuffer() -> u32;
         fn rust_set_visible_framebuffer(addr: u32);
         fn rust_touch_sample(x: &mut i32, y: &mut i32) -> bool;
+
+        // ── ChromART (DMA2D) — see src/dma2d.rs ──────────────────────────
+        /// Set the blit-complete IRQ priority (TouchGFX configureInterrupts).
+        fn rust_dma2d_configure_irq();
+        /// Unmask / mask the blit-complete IRQ. TouchGFX brackets its blit
+        /// queue updates with these, so the ISR can't race the queue.
+        fn rust_dma2d_enable_irq();
+        fn rust_dma2d_disable_irq();
+        /// Solid fill (BLIT_OP_FILL).
+        fn rust_dma2d_fill(dst: u32, out_pfccr: u32, color: u32, dst_off: u16, n_steps: u16, n_loops: u16);
+        /// Constant-alpha fill (BLIT_OP_FILL_WITH_ALPHA).
+        fn rust_dma2d_fill_alpha(
+            dst: u32,
+            out_pfccr: u32,
+            fg_pfccr: u32,
+            bg_pfccr: u32,
+            color: u32,
+            dst_off: u16,
+            n_steps: u16,
+            n_loops: u16,
+        );
+        /// Image blit; `mode` is 0 = M2M, 1 = M2M_PFC, 2 = M2M_BLEND.
+        fn rust_dma2d_copy(
+            mode: u8,
+            src: u32,
+            dst: u32,
+            fg_pfccr: u32,
+            bg_pfccr: u32,
+            out_pfccr: u32,
+            fg_colr: u32,
+            src_off: u16,
+            dst_off: u16,
+            n_steps: u16,
+            n_loops: u16,
+        );
     }
 }
 
 // ── extern "Rust" implementations ────────────────────────────────────────────
+
+// ── ChromART (DMA2D) — thin forwards into the driver in src/dma2d.rs ────────
+
+fn rust_dma2d_configure_irq() {
+    crate::dma2d::configure_irq();
+}
+
+fn rust_dma2d_enable_irq() {
+    crate::dma2d::enable_irq();
+}
+
+fn rust_dma2d_disable_irq() {
+    crate::dma2d::disable_irq();
+}
+
+fn rust_dma2d_fill(dst: u32, out_pfccr: u32, color: u32, dst_off: u16, n_steps: u16, n_loops: u16) {
+    crate::dma2d::fill(dst, out_pfccr, color, dst_off, n_steps, n_loops);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rust_dma2d_fill_alpha(
+    dst: u32,
+    out_pfccr: u32,
+    fg_pfccr: u32,
+    bg_pfccr: u32,
+    color: u32,
+    dst_off: u16,
+    n_steps: u16,
+    n_loops: u16,
+) {
+    crate::dma2d::fill_alpha(dst, out_pfccr, fg_pfccr, bg_pfccr, color, dst_off, n_steps, n_loops);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rust_dma2d_copy(
+    mode: u8,
+    src: u32,
+    dst: u32,
+    fg_pfccr: u32,
+    bg_pfccr: u32,
+    out_pfccr: u32,
+    fg_colr: u32,
+    src_off: u16,
+    dst_off: u16,
+    n_steps: u16,
+    n_loops: u16,
+) {
+    let m = match mode {
+        0 => crate::dma2d::MODE_M2M,
+        1 => crate::dma2d::MODE_M2M_PFC,
+        _ => crate::dma2d::MODE_M2M_BLEND,
+    };
+    crate::dma2d::copy(
+        m, src, dst, fg_pfccr, bg_pfccr, out_pfccr, fg_colr, src_off, dst_off, n_steps, n_loops,
+    );
+}
 
 /// Publish the green-LED blink rate (Hz, 0..100). The `led_service` task
 /// picks it up and does the timing.

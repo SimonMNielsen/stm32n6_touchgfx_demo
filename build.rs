@@ -64,6 +64,10 @@ fn main() {
         .std("c++14")
         .include("cpp")
         .include(format!("{TGFX_APP}/Middlewares/ST/touchgfx/framework/include"))
+        // For CortexMMCUInstrumentation.hpp (MCU-load measurement). Only that
+        // one file is taken from the project's target/ dir — the rest of it is
+        // ST-HAL/NemaGFX bound and replaced by cpp/.
+        .include(format!("{tg}/target"))
         .include(format!("{tg}/gui/include"))
         .include(format!("{tg}/generated/gui_generated/include"))
         .include(format!("{tg}/generated/fonts/include"))
@@ -86,6 +90,10 @@ fn main() {
 
     // This project's glue (HAL, OSWrappers, touch, config, C++ runtime stubs).
     add_cpp_dir(&mut b, "cpp");
+
+    // TouchGFX's own DWT-based MCU-load instrumentation (no ST HAL: it reads
+    // the cycle counter at 0xE0001004 directly; main() enables the counter).
+    b.file(format!("{tg}/target/CortexMMCUInstrumentation.cpp"));
 
     // TouchGFX application: user GUI + generated screens/assets.
     add_cpp_dir(&mut b, &format!("{tg}/gui/src/common"));

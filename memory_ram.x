@@ -10,14 +10,16 @@
  * is used only at runtime for... nothing here; the 800x480 framebuffers live
  * in PSRAM (see src/bridge.rs), which keeps this whole image inside 2 MB.
  *
- * Budget (2 MB): downloaded content (.text ~163K + .rodata ~23K +
- * .tgfx_assets ~1685K image data) ≈ 1.88 MB in FLASH; the remaining ~168 KB
- * is RAM for .data/.bss + heap + stack.
+ * Budget (2 MB): downloaded content (.text + .rodata + ~1.7 MB of
+ * .tgfx_assets image/font data) ≈ 1.89 MB in FLASH; the rest is RAM for
+ * .data/.bss + heap + stack. FLASH is the tight one — adding glyphs or
+ * images pushes it over, and the only slack is this split (RAM only really
+ * needs ~12 KB + stack; the framebuffers live in PSRAM).
  */
 MEMORY
 {
-  FLASH (rx)  : ORIGIN = 0x34000000, LENGTH = 1880K
-  RAM   (rwx) : ORIGIN = 0x341D6000, LENGTH = 168K
+  FLASH (rx)  : ORIGIN = 0x34000000, LENGTH = 1888K
+  RAM   (rwx) : ORIGIN = 0x341D8000, LENGTH = 160K
 }
 
 /* Stack grows down from the top of the reset-enabled AXISRAM window. */
