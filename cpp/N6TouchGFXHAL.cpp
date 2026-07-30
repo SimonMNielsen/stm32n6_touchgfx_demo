@@ -2,8 +2,7 @@
 
 #include <touchgfx/Application.hpp>
 
-// cxx-generated declarations of the Rust bridge functions.
-#include "stm32n6_touchgfx_demo/src/bridge.rs.h"
+#include "touchgfx_rust_callbacks.h"
 
 using namespace touchgfx;
 

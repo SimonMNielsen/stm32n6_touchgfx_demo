@@ -1,0 +1,7 @@
+# Paths may be absolute or relative to this file. Quotes are optional.
+# The Designer directory must contain gui/, generated/, target/, and application.config.
+designer_project = touchgfx_project/Appli/TouchGFX
+
+# Exact prebuilt archive for the target/toolchain/float ABI.
+# touchgfx-rs infers framework/include from an ancestor of this archive.
+core_library = touchgfx_project/Appli/Middlewares/ST/touchgfx/lib/core/cortex_m55/gcc/libtouchgfx-float-abi-hard.a

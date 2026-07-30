@@ -45,7 +45,7 @@ VectorRenderer* VectorRenderer::getInstance()
 } // namespace touchgfx
 
 static N6TouchController tc;
-static N6ChromArtDMA dma; // ChromART (DMA2D) hardware blitter
+static TouchGfxChromArtDMA dma; // ChromART (DMA2D) hardware blitter
 static LCD16bpp display;
 static VectorFontRendererImpl vectorFontRenderer;
 

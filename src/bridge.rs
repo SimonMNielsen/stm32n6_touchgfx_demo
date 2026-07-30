@@ -1,30 +1,22 @@
-//! cxx bridge between the TouchGFX C++ glue (cpp/) and the embassy firmware.
+//! App-specific TouchGFX bridge implementation for the STM32N6570-DK demo.
 //!
-//! Direction C++ → Rust: vsync pacing, framebuffer swap (LTDC), touch
-//! samples, delays. Direction Rust → C++: framework init + the render loop.
-//!
-//! Everything crossing the bridge is a primitive, so the generated code
-//! needs no cxx runtime support (no std, no alloc).
+//! This module implements the board-specific callbacks required by the
+//! touchgfx-rs crate: framebuffer management, vsync, touch/button sampling,
+//! and LED control. The generic DMA2D and C++ glue live in touchgfx-rs.
 
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
-
 use embassy_time::{Duration, Instant};
 
-// ── Framebuffer layout (PSRAM — 800×480 full-panel, RGB565) ─────────────────
+// ── Application framebuffer geometry/layout ─────────────────────────────────
 
-/// The N6 TouchGFX app is full-screen 800×480. Software rendering (LCD16bpp)
-/// writes into a double framebuffer + animation storage in PSRAM: each frame
-/// is 750 KB, too big for the AXISRAM slots the H750 build used, and PSRAM is
-/// non-cacheable so the LTDC sees CPU writes with no cache maintenance.
 pub const TGFX_WIDTH: usize = 800;
 pub const TGFX_HEIGHT: usize = 480;
-pub const FB_BYTES: usize = TGFX_WIDTH * TGFX_HEIGHT * 2; // 768000
-
+pub const FB_BYTES: usize = TGFX_WIDTH * TGFX_HEIGHT * 2;
 pub const FB0_ADDR: u32 = 0x9000_0000;
-pub const FB1_ADDR: u32 = 0x900C_0000;
-pub const ANIM_ADDR: u32 = 0x9018_0000;
+pub const FB1_ADDR: u32 = FB0_ADDR + FB_BYTES as u32;
+pub const ANIM_ADDR: u32 = FB1_ADDR + FB_BYTES as u32;
 
-// ── Shared state (bridge fns ↔ embassy tasks) ────────────────────────────────
+// ── Shared state (bridge callbacks ↔ embassy tasks) ──────────────────────────
 
 /// Set by the vsync ticker task (HIGH executor), consumed by
 /// `rust_wait_for_vsync` on the TouchGFX (thread-mode) side.
@@ -53,150 +45,33 @@ pub static RED_ON: AtomicBool = AtomicBool::new(false);
 pub static WIN_OFF_X: AtomicI32 = AtomicI32::new(0);
 pub static WIN_OFF_Y: AtomicI32 = AtomicI32::new(0);
 
-#[cxx::bridge]
-pub mod ffi {
-    unsafe extern "C++" {
-        include!("touchgfx_shim.h");
-
-        /// Initialize the TouchGFX framework (after C++ static ctors ran).
-        fn tgfx_init();
-
-        /// TouchGFX main loop — never returns.
-        fn tgfx_task_entry();
-
-        /// Called from the DMA2D ISR: tells TouchGFX the blit finished so it
-        /// can start the next one in its queue.
-        fn tgfx_signal_dma_irq();
-    }
-
-    extern "Rust" {
-        fn rust_wait_for_vsync();
-        fn rust_delay_ms(ms: u16);
-        fn rust_button_sample(key: &mut u8) -> bool;
-        /// Green LED (PO1) blink rate, 0..100 Hz (0 = off).
-        fn rust_set_green_hz(hz: u8);
-        /// Red LED (PG10) on/off.
-        fn rust_set_red(on: bool);
-        fn rust_fb0_addr() -> u32;
-        fn rust_fb1_addr() -> u32;
-        fn rust_anim_addr() -> u32;
-        fn rust_get_visible_framebuffer() -> u32;
-        fn rust_set_visible_framebuffer(addr: u32);
-        fn rust_touch_sample(x: &mut i32, y: &mut i32) -> bool;
-
-        // ── ChromART (DMA2D) — see src/dma2d.rs ──────────────────────────
-        /// Set the blit-complete IRQ priority (TouchGFX configureInterrupts).
-        fn rust_dma2d_configure_irq();
-        /// Unmask / mask the blit-complete IRQ. TouchGFX brackets its blit
-        /// queue updates with these, so the ISR can't race the queue.
-        fn rust_dma2d_enable_irq();
-        fn rust_dma2d_disable_irq();
-        /// Solid fill (BLIT_OP_FILL).
-        fn rust_dma2d_fill(dst: u32, out_pfccr: u32, color: u32, dst_off: u16, n_steps: u16, n_loops: u16);
-        /// Constant-alpha fill (BLIT_OP_FILL_WITH_ALPHA).
-        fn rust_dma2d_fill_alpha(
-            dst: u32,
-            out_pfccr: u32,
-            fg_pfccr: u32,
-            bg_pfccr: u32,
-            color: u32,
-            dst_off: u16,
-            n_steps: u16,
-            n_loops: u16,
-        );
-        /// Image blit; `mode` is 0 = M2M, 1 = M2M_PFC, 2 = M2M_BLEND.
-        fn rust_dma2d_copy(
-            mode: u8,
-            src: u32,
-            dst: u32,
-            fg_pfccr: u32,
-            bg_pfccr: u32,
-            out_pfccr: u32,
-            fg_colr: u32,
-            src_off: u16,
-            dst_off: u16,
-            n_steps: u16,
-            n_loops: u16,
-        );
-    }
-}
-
 // ── extern "Rust" implementations ────────────────────────────────────────────
-
-// ── ChromART (DMA2D) — thin forwards into the driver in src/dma2d.rs ────────
-
-fn rust_dma2d_configure_irq() {
-    crate::dma2d::configure_irq();
-}
-
-fn rust_dma2d_enable_irq() {
-    crate::dma2d::enable_irq();
-}
-
-fn rust_dma2d_disable_irq() {
-    crate::dma2d::disable_irq();
-}
-
-fn rust_dma2d_fill(dst: u32, out_pfccr: u32, color: u32, dst_off: u16, n_steps: u16, n_loops: u16) {
-    crate::dma2d::fill(dst, out_pfccr, color, dst_off, n_steps, n_loops);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn rust_dma2d_fill_alpha(
-    dst: u32,
-    out_pfccr: u32,
-    fg_pfccr: u32,
-    bg_pfccr: u32,
-    color: u32,
-    dst_off: u16,
-    n_steps: u16,
-    n_loops: u16,
-) {
-    crate::dma2d::fill_alpha(dst, out_pfccr, fg_pfccr, bg_pfccr, color, dst_off, n_steps, n_loops);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn rust_dma2d_copy(
-    mode: u8,
-    src: u32,
-    dst: u32,
-    fg_pfccr: u32,
-    bg_pfccr: u32,
-    out_pfccr: u32,
-    fg_colr: u32,
-    src_off: u16,
-    dst_off: u16,
-    n_steps: u16,
-    n_loops: u16,
-) {
-    let m = match mode {
-        0 => crate::dma2d::MODE_M2M,
-        1 => crate::dma2d::MODE_M2M_PFC,
-        _ => crate::dma2d::MODE_M2M_BLEND,
-    };
-    crate::dma2d::copy(
-        m, src, dst, fg_pfccr, bg_pfccr, out_pfccr, fg_colr, src_off, dst_off, n_steps, n_loops,
-    );
-}
 
 /// Publish the green-LED blink rate (Hz, 0..100). The `led_service` task
 /// picks it up and does the timing.
-fn rust_set_green_hz(hz: u8) {
+#[no_mangle]
+pub extern "C" fn rust_set_green_hz(hz: u8) {
     GREEN_HZ.store(hz as u32, Ordering::Relaxed);
 }
 
 /// Publish the red-LED on/off state.
-fn rust_set_red(on: bool) {
+#[no_mangle]
+pub extern "C" fn rust_set_red(on: bool) {
     RED_ON.store(on, Ordering::Relaxed);
 }
 
 /// USER-button sample for the TouchGFX ButtonController: reports key `1`
 /// exactly once per press (edge detection here keeps the GUI's
 /// handleKeyEvent from repeating while the button is held).
-fn rust_button_sample(key: &mut u8) -> bool {
+#[no_mangle]
+pub unsafe extern "C" fn rust_button_sample(key: *mut u8) -> bool {
     use bsp_stm32n6570::buttons::bsp_buttons;
 
     static WAS_PRESSED: AtomicBool = AtomicBool::new(false);
+
+    if key.is_null() {
+        return false;
+    }
 
     let ptr = BUTTON_PTR.load(Ordering::Relaxed) as *mut bsp_buttons;
     if ptr.is_null() {
@@ -208,7 +83,7 @@ fn rust_button_sample(key: &mut u8) -> bool {
     let pressed = buttons.is_pressed();
     let was = WAS_PRESSED.swap(pressed, Ordering::Relaxed);
     if pressed && !was {
-        *key = 1;
+        unsafe { *key = 1 };
         true
     } else {
         false
@@ -217,39 +92,46 @@ fn rust_button_sample(key: &mut u8) -> bool {
 
 /// Block (thread mode) until the vsync ticker fires. Any interrupt wakes the
 /// `wfe`, so the HIGH-priority executor keeps running while we sleep here.
-fn rust_wait_for_vsync() {
+#[no_mangle]
+pub extern "C" fn rust_wait_for_vsync() {
     while !VSYNC.swap(false, Ordering::Acquire) {
         cortex_m::asm::wfe();
     }
 }
 
 /// Blocking millisecond delay (TouchGFX `OSWrappers::taskDelay`).
-fn rust_delay_ms(ms: u16) {
+#[no_mangle]
+pub extern "C" fn rust_delay_ms(ms: u16) {
     let deadline = Instant::now() + Duration::from_millis(ms as u64);
     while Instant::now() < deadline {
         cortex_m::asm::nop();
     }
 }
 
-fn rust_fb0_addr() -> u32 {
+#[no_mangle]
+pub extern "C" fn rust_fb0_addr() -> u32 {
     FB0_ADDR
 }
 
-fn rust_fb1_addr() -> u32 {
+#[no_mangle]
+pub extern "C" fn rust_fb1_addr() -> u32 {
     FB1_ADDR
 }
 
-fn rust_anim_addr() -> u32 {
+#[no_mangle]
+pub extern "C" fn rust_anim_addr() -> u32 {
     ANIM_ADDR
 }
 
-fn rust_get_visible_framebuffer() -> u32 {
+#[no_mangle]
+pub extern "C" fn rust_get_visible_framebuffer() -> u32 {
     VISIBLE_FB.load(Ordering::Relaxed)
 }
 
 /// Point LTDC Layer1 at `addr` with an immediate reload — the TouchGFX
 /// double-buffer swap (equivalent of the H7 project's `LTDC_Layer1->CFBAR =`).
-fn rust_set_visible_framebuffer(addr: u32) {
+#[no_mangle]
+pub extern "C" fn rust_set_visible_framebuffer(addr: u32) {
     use embassy_stm32::pac::ltdc::vals::Imr;
     use embassy_stm32::pac::LTDC;
 
@@ -265,8 +147,13 @@ fn rust_set_visible_framebuffer(addr: u32) {
 /// (~1 ms) happens at the GUI's own rate. The GT911 only latches *new*
 /// samples, so a short miss-tolerance keeps drags from flickering to
 /// "released" between reports.
-fn rust_touch_sample(x: &mut i32, y: &mut i32) -> bool {
+#[no_mangle]
+pub unsafe extern "C" fn rust_touch_sample(x: *mut i32, y: *mut i32) -> bool {
     use bsp_stm32n6570::touch::bsp_touch;
+
+    if x.is_null() || y.is_null() {
+        return false;
+    }
 
     // Last reported state (thread-mode only — plain statics via atomics).
     static LAST_DOWN: AtomicBool = AtomicBool::new(false);
@@ -316,8 +203,10 @@ fn rust_touch_sample(x: &mut i32, y: &mut i32) -> bool {
     }
 
     if LAST_DOWN.load(Ordering::Relaxed) {
-        *x = LAST_X.load(Ordering::Relaxed);
-        *y = LAST_Y.load(Ordering::Relaxed);
+        unsafe {
+            *x = LAST_X.load(Ordering::Relaxed);
+            *y = LAST_Y.load(Ordering::Relaxed);
+        }
         true
     } else {
         false

@@ -2,19 +2,11 @@
  *
  * probe-rs downloads the ELF directly into AXISRAM and executes it.
  *
- * CRITICAL: only AXISRAM1-4 (0x3400_0000 .. 0x3420_0000, 2 MB) is enabled at
- * reset / during the probe-rs download. AXISRAM5-6 (0x3420_0000+) is gated off
- * until main() sets RCC.MEMENR, so NOTHING that is downloaded, nor the stack
- * or .data/.bss, may live above 0x3420_0000 — doing so wedges the AXI bus in
- * the reset handler before a single log line (silent SwdApFault). AXISRAM5-6
- * is used only at runtime for... nothing here; the 800x480 framebuffers live
- * in PSRAM (see src/bridge.rs), which keeps this whole image inside 2 MB.
+ * The executable is downloaded into the reset-visible AXISRAM window. The
+ * board startup code enables all remaining SRAM banks before using them.
  *
- * Budget (2 MB): downloaded content (.text + .rodata + ~1.7 MB of
- * .tgfx_assets image/font data) ≈ 1.89 MB in FLASH; the rest is RAM for
- * .data/.bss + heap + stack. FLASH is the tight one — adding glyphs or
- * images pushes it over, and the only slack is this split (RAM only really
- * needs ~12 KB + stack; the framebuffers live in PSRAM).
+ * Downloaded content is now about 224 KiB after removing unused images and
+ * libstdc++. Keep the original proven code/RAM split for this board.
  */
 MEMORY
 {

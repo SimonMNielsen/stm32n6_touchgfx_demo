@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
-# TouchGFX (C++ GUI framework) running on Rust/embassy via the `cxx` bridge.
+# TouchGFX (C++ GUI framework) running on Rust/embassy via a small C ABI.
 #
 # The TouchGFX application (GUI screens, generated assets, framework library)
 # is vendored in `touchgfx_project/` — the N6-native 800x480 RGB565 demo.
@@ -35,11 +35,9 @@ embassy-embedded-hal = { version = "0.6.0", path = "../../smn_embassy_fork/embas
 # default-features=false: we provide our own defmt-rtt + panic-probe below.
 bsp_stm32n6570 = { version = "0.1.0", package = "bsp_stm32n6570_dk", path = "../internal_crates/stm32n6570_disco_bsp", default-features = false }
 
-# C++ interop — the TouchGFX glue calls Rust (vsync/touch/framebuffer) and
-# Rust calls C++ (touchgfx_init / taskEntry) through this bridge.
-# "alloc" is cxx's minimum supported no_std configuration; the bridge itself
-# only passes primitives, but the crate needs a global allocator to exist.
-cxx = { version = "1.0", default-features = false, features = ["alloc"] }
+# TouchGFX integration layer — provides DMA2D driver, C++ glue, and build helpers.
+touchgfx-rs = { version = "0.1.0", path = "../internal_crates/touchgfx-rs", features = ["stm32n6"] }
+
 alloc-cortex-m = "0.4.4"
 
 defmt     = "1.0.1"
@@ -53,7 +51,15 @@ static_cell = "2.1.1"
 
 [build-dependencies]
 cc = "1"
-cxx-build = "1.0"
+touchgfx-rs = { version = "0.1.0", path = "../internal_crates/touchgfx-rs", default-features = false, features = ["build"] }
+
+[patch."https://github.com/embassy-rs/embassy"]
+embassy-stm32 = { path = "../../smn_embassy_fork/embassy/embassy-stm32" }
+embassy-sync = { path = "../../smn_embassy_fork/embassy/embassy-sync" }
+embassy-executor = { path = "../../smn_embassy_fork/embassy/embassy-executor" }
+embassy-time = { path = "../../smn_embassy_fork/embassy/embassy-time" }
+embassy-futures = { path = "../../smn_embassy_fork/embassy/embassy-futures" }
+embassy-embedded-hal = { path = "../../smn_embassy_fork/embassy/embassy-embedded-hal" }
 
 [[bin]]
 name = "touchgfx_demo"

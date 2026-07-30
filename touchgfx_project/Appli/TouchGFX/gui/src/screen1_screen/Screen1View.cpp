@@ -2,8 +2,8 @@
 
 #include <touchgfx/Unicode.hpp>
 
-// cxx bridge into the Rust firmware (LED control).
-#include "stm32n6_touchgfx_demo/src/bridge.rs.h"
+// Application-specific Rust firmware callbacks (LED control).
+#include "AppCallbacks.h"
 // Firmware glue: ChromART on/off + MCU load.
 #include "touchgfx_shim.h"
 

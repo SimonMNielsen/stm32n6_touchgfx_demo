@@ -5,11 +5,11 @@
 //! through the Rust N6 BSP + embassy — no ST HAL anywhere:
 //!
 //!   - LTDC / panel / backlight  → `bsp_stm32n6570::display`, full-screen
-//!   - framebuffers (PSRAM) + double-buffer swap → cxx bridge → embassy PAC
+//!   - framebuffers (PSRAM) + double-buffer swap → C ABI → embassy PAC
 //!   - vsync pacing → embassy ticker task on the HIGH interrupt executor
 //!   - touch → GT911, sampled from thread mode over the bridge
-//!   - ChromART (DMA2D) blitting → `dma2d.rs`, driven by TouchGFX's
-//!     `DMA_Interface` (cpp/N6ChromArtDMA)
+//!   - ChromART (DMA2D) blitting → `touchgfx-rs`, driven by its reusable
+//!     `DMA_Interface`
 //!   - LEDs → `led_service` task (green blink rate / red on-off from the GUI)
 //!
 //! Thread mode is donated to TouchGFX: `tgfx_task_entry()` never returns and
@@ -21,7 +21,6 @@
 extern crate alloc;
 
 mod bridge;
-mod dma2d;
 
 use core::sync::atomic::Ordering;
 
@@ -35,9 +34,10 @@ use embassy_time::{Duration, Ticker};
 use panic_probe as _;
 
 use bridge::{
-    ffi, ANIM_ADDR, BUTTON_PTR, FB0_ADDR, FB1_ADDR, FB_BYTES, GREEN_HZ, RED_ON, TGFX_HEIGHT,
+    ANIM_ADDR, BUTTON_PTR, FB0_ADDR, FB1_ADDR, FB_BYTES, GREEN_HZ, RED_ON, TGFX_HEIGHT,
     TGFX_WIDTH, TOUCH_PTR, VSYNC, WIN_OFF_X, WIN_OFF_Y,
 };
+use touchgfx_rs::ffi;
 use static_cell::StaticCell;
 
 use bsp_stm32n6570 as bsp;
@@ -48,7 +48,7 @@ use bsp_stm32n6570 as bsp;
 const WIN_X: usize = 0;
 const WIN_Y: usize = 0;
 
-// ── Heap (required by cxx's `alloc` feature) ────
+// ── Rust heap ────────────────────────────────────────────────────────────────
 #[global_allocator]
 static ALLOCATOR: alloc_cortex_m::CortexMHeap = alloc_cortex_m::CortexMHeap::empty();
 const HEAP_SIZE: usize = 16 * 1024;
@@ -80,7 +80,7 @@ unsafe fn SPI6() {
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    // Heap first (cxx alloc support) — before anything can allocate.
+    // Heap first — before any Rust component can allocate.
     unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) }
 
     // DWT cycle counter — TouchGFX's CortexMMCUInstrumentation reads CYCCNT
@@ -132,16 +132,15 @@ fn main() -> ! {
     embassy_stm32::pac::RCC.ahb4enr().modify(|w| w.set_crcen(true));
     cortex_m::asm::dsb();
 
-    // ChromART (DMA2D): clock + clean IRQ state. TouchGFX's N6ChromArtDMA
+    // ChromART (DMA2D): clock + clean IRQ state. The reusable DMA interface
     // drives it; the RIF promotion for the DMA2D bus master is already done by
     // the BSP display init. The NVIC line stays masked until TouchGFX's
     // HAL::enableInterrupts() in taskEntry.
-    dma2d::init();
-    info!("MPU + SRAM banks + VddIO4 + CRC + ChromART(DMA2D) ready");
+    touchgfx_rs::dma2d::init();
+    info!("MPU + SRAM banks + VddIO4 + CRC + ChromArt(DMA2D) ready");
 
     // ── PSRAM (XSPI1) — holds the 800×480 framebuffers + newlib heap ────────
-    // Must be up before the framebuffers are cleared and before the C++ static
-    // constructors run (their libstdc++ locale ctors sbrk into PSRAM).
+    // Must be up before the framebuffers are cleared and TouchGFX starts.
     let mut ram = bsp::bsp::init_ram(
         p.XSPI1,
         p.PO4, p.PO0, p.PO2, p.PO3,
