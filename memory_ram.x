@@ -14,5 +14,6 @@ MEMORY
   RAM   (rwx) : ORIGIN = 0x341D8000, LENGTH = 160K
 }
 
-/* Stack grows down from the top of the reset-enabled AXISRAM window. */
-_stack_start = 0x34200000;
+/* Keep the initial SP itself inside the declared RAM region. The stack grows
+ * down, but 0x34200000 is the next-bank boundary and can fault debug access. */
+_stack_start = 0x341FFFF0;

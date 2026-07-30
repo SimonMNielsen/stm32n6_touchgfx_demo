@@ -21,6 +21,8 @@
 extern crate alloc;
 
 mod bridge;
+mod clock;
+mod dma2d;
 
 use core::sync::atomic::Ordering;
 
@@ -93,7 +95,7 @@ fn main() -> ! {
     }
 
     // Clocks + embassy time driver.
-    let p = bsp::clock::rcc_setup::stm32n6570_init();
+    let p = clock::init();
     info!("clock + time driver up");
 
     // MPU (external memory attributes) + all SRAM banks + VddIO4 for the

@@ -15,25 +15,28 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 # NOTE: local paths to all embassy modules to avoid version mismatch issues
 # (same fork as stm32n6570_disco_bsp_demos).
-embassy-stm32 = { version = "0.6.0", path = "../../smn_embassy_fork/embassy/embassy-stm32", features = [
-    "defmt",
+embassy-stm32 = { version = "0.6.0", git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6", features = [
+    "defmt",   
     "stm32n657x0",
     "time-driver-any",
     "exti",
     "unstable-pac",
     "rt",
-    # memory-x intentionally omitted: STM32N6 has no internal Flash.
+    # memory-x intentionally omitted: STM32N6 has no internal Flash, so embassy's
+    # auto-generated memory.x would panic. The BSP supplies its own memory.x instead.
     "chrono",
 ] }
-embassy-sync = { version = "0.8.0", path = "../../smn_embassy_fork/embassy/embassy-sync", features = ["defmt"] }
-embassy-executor = { version = "0.10.0", path = "../../smn_embassy_fork/embassy/embassy-executor", features = ["executor-thread", "executor-interrupt", "platform-cortex-m", "defmt"] }
-embassy-time = { version = "0.5.1", path = "../../smn_embassy_fork/embassy/embassy-time", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
-embassy-futures = { version = "0.1.2", path = "../../smn_embassy_fork/embassy/embassy-futures" }
-embassy-embedded-hal = { version = "0.6.0", path = "../../smn_embassy_fork/embassy/embassy-embedded-hal" }
+embassy-sync = { version = "0.8.0", git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6", features = ["defmt"] }
+embassy-executor = { version = "0.10.0", git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6", features = ["executor-thread", "executor-interrupt", "platform-cortex-m", "defmt"] }
+embassy-time = { version = "0.5.1", git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
+embassy-futures = { version = "0.1.2", git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embassy-embedded-hal = { version = "0.6.0", git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embedded-hal_10 = { version = "1.0", package="embedded-hal" }
+embedded-hal = { version = "0.2.7", package="embedded-hal"  }
 
 # Board support package for the STM32N6570-DK.
 # default-features=false: we provide our own defmt-rtt + panic-probe below.
-bsp_stm32n6570 = { version = "0.1.0", package = "bsp_stm32n6570_dk", path = "../internal_crates/stm32n6570_disco_bsp", default-features = false }
+bsp_stm32n6570 = { version = "0.1.0", package = "bsp_stm32n6570_dk", git = "https://github.com/SimonMNielsen/stm32n6570_disco_bsp", default-features = false }
 
 # TouchGFX integration layer — provides DMA2D driver, C++ glue, and build helpers.
 touchgfx-rs = { version = "0.1.0", path = "../internal_crates/touchgfx-rs", features = ["stm32n6"] }
@@ -83,3 +86,25 @@ incremental = false
 opt-level = 3
 overflow-checks = false
 lto = "fat"
+
+
+# ── Embassy patch ─────────────────────────────────────────────────────────────
+#
+# Transitive git-dep crates (BSP + vl53l5cx + …) reference embassy at
+# `https://github.com/embassy-rs/embassy?rev=02bf842`. We *must* use the
+# local fork for `embassy-stm32` (it has our N6 NPU driver). Without a
+# `[patch]`, cargo sees two distinct sources for the `links="embassy-time"`
+# native package (git-rev vs path) and refuses to resolve.
+#
+# `[patch]` at the top-level app redirects the git-rev URL to the local
+# fork for every crate in the graph, so BSP + vl53l5cx + this app all end
+# up using the exact same in-tree embassy crates. Keep the local fork
+# at a commit compatible with `02bf842` (same crate versions + APIs);
+# `cargo update` will refuse the patch if versions diverge.
+[patch."https://github.com/embassy-rs/embassy"]
+embassy-stm32        = { git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embassy-sync         = { git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embassy-executor     = { git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embassy-time         = { git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embassy-futures      = { git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
+embassy-embedded-hal = { git = "https://github.com/SimonMNielsen/embassy", rev = "ffec85c6" }
