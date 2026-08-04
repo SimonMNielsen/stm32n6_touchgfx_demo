@@ -34,10 +34,10 @@ embedded-hal = { version = "0.2.7", package="embedded-hal"  }
 
 # Board support package for the STM32N6570-DK.
 # default-features=false: we provide our own defmt-rtt + panic-probe below.
-bsp_stm32n6570 = { version = "0.1.0", package = "bsp_stm32n6570_dk", git = "https://github.com/SimonMNielsen/stm32n6570_disco_bsp", rev = "2f7082c", default-features = false }
+bsp_stm32n6570 = { version = "0.1.0", package = "bsp_stm32n6570_dk", git = "https://github.com/SimonMNielsen/stm32n6570_disco_bsp", rev = "c89e572", default-features = false }
 
 # TouchGFX integration layer — provides DMA2D driver, C++ glue, and build helpers.
-touchgfx-rs = { version = "0.1.0", git = "https://github.com/SimonMNielsen/touchgfx-rs", rev = "47d5d44", features = ["stm32n6"] }
+touchgfx-rs = { version = "0.1.0", git = "https://github.com/SimonMNielsen/touchgfx-rs", rev = "31bd228", features = ["stm32n6"] }
 
 alloc-cortex-m = "0.4.4"
 
@@ -51,7 +51,7 @@ heapless    = { version = "0.8", default-features = false }
 static_cell = "2.1.1"
 
 [build-dependencies]
-touchgfx-rs = { version = "0.1.0", git = "https://github.com/SimonMNielsen/touchgfx-rs", rev = "47d5d44", default-features = false, features = ["build"] }
+touchgfx-rs = { version = "0.1.0", git = "https://github.com/SimonMNielsen/touchgfx-rs", rev = "31bd228", default-features = false, features = ["build"] }
 
 [[bin]]
 name = "touchgfx_demo"
@@ -76,37 +76,3 @@ opt-level = 3
 overflow-checks = false
 lto = "fat"
 
-
-# ── Embassy: use official upstream @ fbc40bd ─────────────────────────────────
-#
-# All embassy deps (direct + transitive from BSP / touchgfx-rs) are pinned to
-# upstream `embassy-rs/embassy` @ `fbc40bd` — the last commit BEFORE the N6
-# RCC voltage-scaling change (`96a2f41`) and the RIF-attributes module
-# (`b8299880`) that regress the demos. No local embassy fork override.
-#
-# The touchgfx demo does NOT use the NPU, so we don't need the fork's NPU
-# driver — pure upstream is fine.
-
-# ── BSP + vl53l5cx: redirect to local checkouts ──────────────────────────────
-#
-# The BSP is git-pinned to a rev that references old embassy; patch it to the
-# local checkout (already updated to embassy @ fbc40bd) so cargo sees a
-# single embassy source across the graph. vl53l5cx is a transitive dep of
-# the BSP and gets the same treatment.
-[patch."https://github.com/SimonMNielsen/stm32n6570_disco_bsp"]
-bsp_stm32n6570_dk = { path = "../internal_crates/stm32n6570_disco_bsp" }
-
-[patch."https://github.com/SimonMNielsen/vl53l5cx"]
-vl53l5cx = { path = "../internal_crates/vl53l5cx" }
-
-# # ── touchgfx-rs local override ────────────────────────────────────────────────
-# #
-# # The manifest declares touchgfx-rs as a git dep (so a downstream consumer
-# # always resolves to a pinned revision), but during development it's much
-# # faster to iterate against the local working copy. This patch redirects
-# # every reference to the git URL — including the build-dep — to the local
-# # path, satisfying cargo's "one canonical source per package" rule and
-# # letting us test unpublished changes. Remove or comment out to build
-# # strictly against the pinned git revision.
-[patch."https://github.com/SimonMNielsen/touchgfx-rs"]
-touchgfx-rs = { path = "../internal_crates/touchgfx-rs" }
