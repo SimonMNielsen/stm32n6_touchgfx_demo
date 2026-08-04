@@ -1,10 +1,14 @@
 //! TouchGFX application-specific STM32N6 clock configuration.
+//!
+//! Wraps [`bsp_stm32n6570::clock::rcc_setup::n6570_clock_config`] with the
+//! system-bus clock islands (IC2 + IC6 + IC11) that this app needs but the
+//! BSP baseline intentionally leaves unset. Analogous to the
+//! `common::init_peripherals` wrapper in the blazeface demo.
 
 use embassy_stm32::rcc::{IcConfig, Icint, Icsel};
 use embassy_stm32::Peripherals;
 
-/// Initialize the board using the BSP defaults plus the system-bus clocks
-/// required by this application's STM32N6/Embassy configuration.
+/// Initialize embassy with the BSP baseline clock tree plus IC2/IC6/IC11.
 pub fn init() -> Peripherals {
     let mut config = bsp_stm32n6570::clock::rcc_setup::n6570_clock_config();
 

@@ -5,7 +5,8 @@
 //! through the Rust N6 BSP + embassy — no ST HAL anywhere:
 //!
 //!   - LTDC / panel / backlight  → `bsp_stm32n6570::display`, full-screen
-//!   - framebuffers (PSRAM) + double-buffer swap → C ABI → embassy PAC
+//!   - framebuffers (FB0/FB1 in AXISRAM, animation storage in PSRAM) +
+//!     double-buffer swap → C ABI → embassy PAC
 //!   - vsync pacing → embassy ticker task on the HIGH interrupt executor
 //!   - touch → GT911, sampled from thread mode over the bridge
 //!   - ChromART (DMA2D) blitting → `touchgfx-rs`, driven by its reusable
@@ -22,7 +23,6 @@ extern crate alloc;
 
 mod bridge;
 mod clock;
-mod dma2d;
 
 use core::sync::atomic::Ordering;
 
@@ -37,9 +37,10 @@ use panic_probe as _;
 
 use bridge::{
     ANIM_ADDR, BUTTON_PTR, FB0_ADDR, FB1_ADDR, FB_BYTES, GREEN_HZ, RED_ON, TGFX_HEIGHT,
-    TGFX_WIDTH, TOUCH_PTR, VSYNC, WIN_OFF_X, WIN_OFF_Y,
+    TGFX_WIDTH, TOUCH_PTR, WIN_OFF_X, WIN_OFF_Y,
 };
 use touchgfx_rs::ffi;
+use touchgfx_rs::runtime;
 use static_cell::StaticCell;
 
 use bsp_stm32n6570 as bsp;
@@ -88,24 +89,43 @@ fn main() -> ! {
     // DWT cycle counter — TouchGFX's CortexMMCUInstrumentation reads CYCCNT
     // (0xE0001004) raw to compute the MCU load %, but its init() is empty: the
     // counter has to be turned on here or the load always reads 0.
-    {
-        let mut cp = unsafe { cortex_m::Peripherals::steal() };
-        cp.DCB.enable_trace();
-        cp.DWT.enable_cycle_counter();
-    }
+    runtime::enable_dwt_cycle_counter();
 
-    // Clocks + embassy time driver.
+    // Clocks + embassy time driver. `clock::init` extends the BSP baseline
+    // clock tree with the IC2/IC6/IC11 system-bus group this app needs.
     let p = clock::init();
     info!("clock + time driver up");
 
-    // MPU (external memory attributes) + all SRAM banks + VddIO4 for the
-    // Port Q panel-control GPIOs (LCD_ONOFF=PQ3, LCD_BL_CTRL=PQ6).
-    {
-        let mut core_p = unsafe { cortex_m::Peripherals::steal() };
-        bsp::memory::configure_mpu_for_external_memories(&mut core_p);
-    }
-    // Enable all AXISRAM/AHBSRAM banks for bus masters (LTDC scans the
-    // framebuffers in AXISRAM5/6) — embassy init only sets low-power gates.
+    // ── BSP subsystems in one call ───────────────────────────────────────────
+    // `init_hardware` configures the MPU for external memories, enables the
+    // VddIO4 supply valid (needed for Port Q GPIOs: LCD_ONOFF=PQ3,
+    // LCD_BL_CTRL=PQ6), and brings up every subsystem requested below.
+    //
+    // Deferred to the app (still done further down): PSRAM chip init,
+    // panel init (releases LCD_NRST), GT911 chip init.
+    let hw = bsp::init::init_hardware(
+        p,
+        bsp::init::InitConfig {
+            leds:    true,
+            buttons: true,
+            touch:   true,   // MCU-side only — chip init done after panel NRST release
+            display: true,   // MCU-side only — init_panel() done after LTDC layer setup
+            imu:     false,
+            flash:   false,  // no NOR flash — RAM/probe-rs boot
+            ram:     true,   // MCU-side only — chip init done below
+            tof:     false,
+            camera:  false,
+        },
+    );
+    let mut ram     = hw.ram    .expect("BSP: PSRAM handle missing");
+    let mut display = hw.display.expect("BSP: display handle missing");
+    let touch       = hw.touch  .expect("BSP: touch handle missing");
+    let buttons     = hw.buttons.expect("BSP: buttons handle missing");
+    let leds        = hw.leds   .expect("BSP: leds handle missing");
+
+    // Enable all AXISRAM/AHBSRAM banks for bus masters (LTDC + DMA2D scan
+    // the framebuffers in AXISRAM at 0x3420_0000) — embassy init only sets
+    // low-power gates, and the BSP intentionally doesn't touch MEMENR.
     {
         use embassy_stm32::pac::RCC;
         RCC.memenr().modify(|w| {
@@ -119,72 +139,35 @@ fn main() -> ! {
             w.set_ahbsram2en(true);
         });
     }
-    {
-        use embassy_stm32::pac::PWR;
-        PWR.svmcr1().modify(|w| {
-            w.0 |= 1 << 8; // VDDIO4SV
-        });
-        cortex_m::asm::dsb();
-    }
 
-    // TouchGFX's Application ctor calls CRC_Lock() — a genuine-STM32 MCU
-    // check that computes a checksum via the hardware CRC peripheral. If the
-    // CRC clock is off it fails and TouchGFX will refuse to run.
-    // (currentScreen = 2 → Screen::draw() through a bogus vtable → BusFault).
-    embassy_stm32::pac::RCC.ahb4enr().modify(|w| w.set_crcen(true));
-    cortex_m::asm::dsb();
+    // TouchGFX's Application ctor calls CRC_Lock() — needs the CRC clock.
+    runtime::enable_crc_clock();
 
     // ChromART (DMA2D): clock + clean IRQ state. The reusable DMA interface
     // drives it; the RIF promotion for the DMA2D bus master is already done by
     // the BSP display init. The NVIC line stays masked until TouchGFX's
     // HAL::enableInterrupts() in taskEntry.
     touchgfx_rs::dma2d::init();
-    info!("MPU + SRAM banks + VddIO4 + CRC + ChromArt(DMA2D) ready");
+    info!("SRAM banks + CRC + ChromArt(DMA2D) ready");
 
-    // ── PSRAM (XSPI1) — holds the 800×480 framebuffers + newlib heap ────────
-    // Must be up before the framebuffers are cleared and TouchGFX starts.
-    let mut ram = bsp::bsp::init_ram(
-        p.XSPI1,
-        p.PO4, p.PO0, p.PO2, p.PO3,
-        p.PP0, p.PP1, p.PP2, p.PP3, p.PP4, p.PP5, p.PP6, p.PP7,
-        p.PP8, p.PP9, p.PP10, p.PP11, p.PP12, p.PP13, p.PP14, p.PP15,
-    );
+    // ── PSRAM chip init — holds the animation-storage buffer + newlib heap.
+    //    FB0/FB1 live in AXISRAM (see bridge.rs); only ANIM_ADDR is in PSRAM.
+    //    Must be up before the framebuffers are cleared and TouchGFX starts.
     if let Err(e) = ram.init_chip() {
         defmt::panic!("PSRAM init failed: {}", e);
     }
-    info!("PSRAM chip initialised (framebuffers @ {:#010x})", FB0_ADDR);
+    info!("PSRAM chip initialised (FB0 in AXISRAM @ {:#010x}, ANIM in PSRAM @ {:#010x})", FB0_ADDR, ANIM_ADDR);
 
-    // ── Touch driver FIRST (before the panel releases NRST) ─────────────────
-    // The GT911 latches its I²C address from the INT pin level at the moment
-    // reset (PE1, shared with the panel) is released. Constructing bsp_touch
-    // here configures PQ4/INT the same way the demos project does — before
-    // init_panel() releases NRST — so the chip latches address 0x14. Creating
-    // it after panel init left INT floating and the GT911 latched 0x5D
-    // ("GT911 not responding").
-    let i2c2_bus = bsp::bsp::init_i2c2_bus(p.I2C2, p.PD14, p.PD4);
-    let touch = bsp::bsp::init_touch(
-        embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice::new(i2c2_bus),
-        p.PQ4,
-        p.EXTI4,
-    );
+    // ── Touch: stash the driver into a StaticCell — chip init runs after
+    // panel NRST is released (below) so the GT911 has already latched I²C
+    // address 0x14 from the INT pin level at reset. See BSP init_hardware:
+    // touch MCU-side is initialised BEFORE display MCU-side (which puts
+    // LCD_NRST=PE1 low), and BEFORE `display.init_panel()` releases it,
+    // so PQ4/INT is driven the whole time NRST transitions high.
     static TOUCH: StaticCell<bsp_stm32n6570::touch::bsp_touch> = StaticCell::new();
     let touch: &'static mut bsp_stm32n6570::touch::bsp_touch = TOUCH.init(touch);
 
-    // ── Display: LTDC timings + panel power ─────────────────────────────────
-    let mut display = bsp::bsp::init_display(
-        p.LTDC,
-        // CLK, HSYNC, VSYNC, DE
-        p.PB13, p.PB14, p.PE11, p.PG13,
-        // R0-R7
-        p.PG0, p.PD9, p.PD15, p.PB4, p.PH4, p.PA15, p.PG11, p.PD8,
-        // G0-G7
-        p.PG12, p.PG1, p.PA1, p.PA0, p.PB15, p.PB12, p.PB11, p.PG8,
-        // B0-B7
-        p.PG15, p.PA7, p.PB2, p.PG6, p.PH3, p.PH6, p.PA8, p.PA2,
-        // Control GPIOs: BL_CTRL, LCD_ONOFF, LCD_NRST
-        p.PQ6, p.PQ3, p.PE1,
-        bsp::bsp_pixel_format::RGB565,
-    );
+    // ── Display: release panel NRST (LCD_NRST=PE1 goes high). ────────────────
     display.init_panel();
 
     // Clear both framebuffers + animation storage before scan-out starts.
@@ -195,7 +178,7 @@ fn main() -> ! {
     }
     cortex_m::asm::dsb();
 
-    // LTDC Layer1: full-screen 800×480 RGB565, scanning FB0 in PSRAM.
+    // LTDC Layer1: full-screen 800×480 RGB565, scanning FB0 in AXISRAM.
     let layer_cfg = LtdcLayerConfig {
         layer: LtdcLayer::Layer1,
         pixel_format: PixelFormat::RGB565,
@@ -212,6 +195,9 @@ fn main() -> ! {
             w.set_imr(embassy_stm32::pac::ltdc::vals::Imr::Reload);
         });
     }
+    // Tell the touchgfx-rs LTDC swap layer which framebuffer is currently
+    // being scanned out (matches the `init_buffer` call above).
+    runtime::visible_fb::init(FB0_ADDR);
     info!("LTDC Layer1: {}x{} full-screen, FB0={:#010x}", TGFX_WIDTH, TGFX_HEIGHT, FB0_ADDR);
 
     // ── GT911 chip bring-up (panel NRST is high now, give it boot time) ─────
@@ -227,14 +213,14 @@ fn main() -> ! {
     TOUCH_PTR.store(touch as *mut _ as u32, Ordering::Relaxed);
 
     // ── USER button (PC13) → TouchGFX ButtonController ──────────────────────
-    // Sampled from thread mode by the C++ N6ButtonController each tick.
-    let buttons = bsp::bsp::init_buttons(p.PC13, p.EXTI13);
+    // Sampled from thread mode by the RustBridgedButtonController each tick.
+    // `buttons` came from `init_hardware` above.
     static BUTTONS: StaticCell<bsp_stm32n6570::buttons::bsp_buttons> = StaticCell::new();
     let buttons: &'static mut bsp_stm32n6570::buttons::bsp_buttons = BUTTONS.init(buttons);
     BUTTON_PTR.store(buttons as *mut _ as u32, Ordering::Relaxed);
 
     // ── Board LEDs → owned by led_service (green blink = slider, red = toggle) ─
-    let leds = bsp::bsp::init_leds(p.PO1, p.PG10);
+    // `leds` came from `init_hardware` above.
 
     // ── HIGH executor: vsync ticker + LED service ───────────────────────────
     interrupt::SPI6.set_priority(Priority::P7);
@@ -243,7 +229,7 @@ fn main() -> ! {
     spawner.spawn(led_service(leds).expect("spawn led_service"));
 
     // ── C++ static constructors (HAL, LCD16bpp, fonts, …) ────────────────────
-    run_cpp_constructors();
+    runtime::run_cpp_constructors();
     info!("C++ static constructors done");
 
     // ── TouchGFX up ──────────────────────────────────────────────────────────
@@ -254,23 +240,6 @@ fn main() -> ! {
     unreachable!()
 }
 
-/// Walk `.init_array` (collected by touchgfx_ctors.x) and run every C++
-/// static constructor. Must run before any TouchGFX code executes.
-fn run_cpp_constructors() {
-    unsafe extern "C" {
-        static __init_array_start: extern "C" fn();
-        static __init_array_end: extern "C" fn();
-    }
-    unsafe {
-        let mut f = &raw const __init_array_start;
-        let end = &raw const __init_array_end;
-        while f < end {
-            (*f)();
-            f = f.add(1);
-        }
-    }
-}
-
 // ── HIGH-priority tasks ───────────────────────────────────────────────────────
 
 /// ~60 Hz vsync heartbeat for the TouchGFX render loop.
@@ -279,10 +248,7 @@ async fn vsync_ticker() {
     let mut ticker = Ticker::every(Duration::from_millis(17));
     loop {
         ticker.next().await;
-        VSYNC.store(true, Ordering::Release);
-        // Thread mode sleeps in `wfe`; the ticker's timer interrupt already
-        // woke it, `sev` just makes the wake explicit.
-        cortex_m::asm::sev();
+        runtime::vsync::signal();
     }
 }
 

@@ -32,6 +32,33 @@
           },
           {
             "Type": "Image",
+            "Name": "rust_logo_8_1",
+            "X": 274,
+            "Y": 305,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_11",
+            "X": 187,
+            "Y": 166,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_10",
+            "X": 532,
+            "Y": 224,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
             "Name": "rust_logo_6_1",
             "X": 565,
             "Y": 305,
@@ -132,32 +159,6 @@
             "AutoSize": true
           },
           {
-            "Type": "TextArea",
-            "Name": "textArea3",
-            "X": 391,
-            "Y": 390,
-            "Width": 50,
-            "Height": 24,
-            "TextId": "__SingleUse_U5E0",
-            "TextRotation": "0",
-            "AutoSize": true
-          },
-          {
-            "Type": "TextArea",
-            "Name": "textArea3_CpuUse",
-            "X": 391,
-            "Y": 428,
-            "Width": 57,
-            "Height": 28,
-            "TextId": "__SingleUse_8313",
-            "TextRotation": "0",
-            "Wildcard1": {
-              "TextId": "cpuuse",
-              "UseBuffer": true,
-              "BufferSize": 4
-            }
-          },
-          {
             "Type": "Image",
             "Name": "rust_logo",
             "X": 81,
@@ -177,9 +178,18 @@
           },
           {
             "Type": "Image",
-            "Name": "rust_logo_8",
-            "X": 274,
-            "Y": 305,
+            "Name": "rust_logo_12",
+            "X": 304,
+            "Y": 166,
+            "Width": 99,
+            "Height": 55,
+            "RelativeFilename": "ferris_small.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "rust_logo_9",
+            "X": 450,
+            "Y": 56,
             "Width": 99,
             "Height": 55,
             "RelativeFilename": "ferris_small.png"
@@ -232,8 +242,8 @@
           {
             "Type": "Image",
             "Name": "tgfx_logo_1",
-            "X": 245,
-            "Y": 172,
+            "X": 142,
+            "Y": 349,
             "Width": 108,
             "Height": 23,
             "RelativeFilename": "tgfx_logo.png"
@@ -288,6 +298,42 @@
             "Name": "tgfx_logo_7",
             "X": 431,
             "Y": 300,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_7_1",
+            "X": 265,
+            "Y": 240,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_7_2",
+            "X": 396,
+            "Y": 135,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_7_3",
+            "X": 660,
+            "Y": 138,
+            "Width": 108,
+            "Height": 23,
+            "RelativeFilename": "tgfx_logo.png"
+          },
+          {
+            "Type": "Image",
+            "Name": "tgfx_logo_7_4",
+            "X": 204,
+            "Y": 123,
             "Width": 108,
             "Height": 23,
             "RelativeFilename": "tgfx_logo.png"

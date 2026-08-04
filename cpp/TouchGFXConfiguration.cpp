@@ -1,14 +1,13 @@
 // TouchGFX framework wiring for the STM32N6570-DK Rust build.
 //
-// Adapted from the generated TouchGFXConfiguration.cpp of the original H750
-// project (TouchGFX Generator 4.26.0), with the board-specific pieces
-// replaced:
-//   STM32DMA (Chrom-ART/DMA2D) -> NoDMA        (CPU rendering for bring-up)
-//   STM32TouchController       -> N6TouchController (GT911 via Rust bridge)
-//   TouchGFXHAL (H7 LTDC regs) -> N6TouchGFXHAL     (embassy LTDC via bridge)
+// This is the one place where application/board policy is encoded:
+//   * Panel resolution              : 800x480
+//   * Pixel format                  : RGB565 (LCD16bpp + CWRVectorRendererRGB565)
+//   * DMA driver                    : TouchGfxChromArtDMA (STM32 DMA2D)
+//   * MCU-load instrumentation      : CortexMMCUInstrumentation
 //
-// The VectorRenderer + Paint instantiations from TouchGFXGeneratedHAL.cpp
-// live here too, since that file is not compiled in this build.
+// Everything else (touch/button controllers, HAL, GPIO hooks, the Rust
+// callback ABI) is generic and lives in the touchgfx-rs integration crate.
 
 #include <texts/TypedTextDatabase.hpp>
 #include <fonts/ApplicationFontProvider.hpp>
@@ -24,9 +23,9 @@
 #include <touchgfx/hal/PaintRGB565Impl.hpp>
 #include <touchgfx/widgets/canvas/CWRVectorRenderer.hpp>
 
-#include "N6TouchGFXHAL.hpp"
-#include "N6TouchController.hpp"
-#include "N6ButtonController.hpp"
+#include "RustBridgedTouchGFXHAL.hpp"
+#include "RustBridgedTouchController.hpp"
+#include "RustBridgedButtonController.hpp"
 #include "N6ChromArtDMA.hpp"
 
 extern "C" void touchgfx_init();
@@ -44,15 +43,15 @@ VectorRenderer* VectorRenderer::getInstance()
 }
 } // namespace touchgfx
 
-static N6TouchController tc;
+static RustBridgedTouchController tc;
 static TouchGfxChromArtDMA dma; // ChromART (DMA2D) hardware blitter
 static LCD16bpp display;
 static VectorFontRendererImpl vectorFontRenderer;
 
 static ApplicationFontProvider fontProvider;
 static Texts texts;
-static N6TouchGFXHAL hal(dma, display, tc, 800, 480);
-static N6ButtonController buttonController;
+static RustBridgedTouchGFXHAL hal(dma, display, tc, 800, 480);
+static RustBridgedButtonController buttonController;
 
 // MCU-load measurement (DWT cycle counter; the counter itself is enabled in
 // Rust main()). Screen1View reads it via tgfx_get_mcu_load_pct() and renders

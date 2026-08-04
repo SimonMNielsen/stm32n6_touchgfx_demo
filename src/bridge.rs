@@ -1,29 +1,32 @@
 //! App-specific TouchGFX bridge implementation for the STM32N6570-DK demo.
 //!
-//! This module implements the board-specific callbacks required by the
-//! touchgfx-rs crate: framebuffer management, vsync, touch/button sampling,
-//! and LED control. The generic DMA2D and C++ glue live in touchgfx-rs.
+//! Only board-specific callbacks live here: framebuffer address getters,
+//! GT911 touch sampling, USER-button sampling, and LED-state publishing.
+//! Reusable bridge callbacks (vsync signalling, `taskDelay`, LTDC layer-0
+//! swap, DMA2D shims) live in [`touchgfx_rs::runtime`] and
+//! [`touchgfx_rs::bridge`].
 
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
-use embassy_time::{Duration, Instant};
 
 // ── Application framebuffer geometry/layout ─────────────────────────────────
 
 pub const TGFX_WIDTH: usize = 800;
 pub const TGFX_HEIGHT: usize = 480;
 pub const FB_BYTES: usize = TGFX_WIDTH * TGFX_HEIGHT * 2;
-pub const FB0_ADDR: u32 = 0x9000_0000;
+
+// FB0 + FB1 live in AXISRAM (internal, multi-GB/s) so that every ChromART
+// blit hits fast SRAM instead of the xSPI1 PSRAM bus at 133 MHz. The demo's
+// `memory_ram.x` reserves only 0x34000000..0x34200000 for code + stack, so
+// 0x34200000 upward is free. ST's N6570-DK reference project uses this same
+// region for `FB_RAM` (see touchgfx_project/Appli/STM32N657XX_LRUN.ld).
+// FB0 = 800*480*2 = 750000 B (~732 KiB), FB1 same → ~1.5 MiB total.
+pub const FB0_ADDR: u32 = 0x3420_0000;
 pub const FB1_ADDR: u32 = FB0_ADDR + FB_BYTES as u32;
-pub const ANIM_ADDR: u32 = FB1_ADDR + FB_BYTES as u32;
+// Animation storage is only touched during screen transitions. Keep it in
+// PSRAM to bound the internal-SRAM footprint.
+pub const ANIM_ADDR: u32 = 0x9000_0000;
 
 // ── Shared state (bridge callbacks ↔ embassy tasks) ──────────────────────────
-
-/// Set by the vsync ticker task (HIGH executor), consumed by
-/// `rust_wait_for_vsync` on the TouchGFX (thread-mode) side.
-pub static VSYNC: AtomicBool = AtomicBool::new(false);
-
-/// LTDC Layer1 CFBAR shadow — which buffer is currently being scanned out.
-pub static VISIBLE_FB: AtomicU32 = AtomicU32::new(FB0_ADDR);
 
 /// GT911 handle for thread-mode sampling. Set once by `main` before TouchGFX
 /// starts; only ever dereferenced from `rust_touch_sample`, which TouchGFX
@@ -90,24 +93,6 @@ pub unsafe extern "C" fn rust_button_sample(key: *mut u8) -> bool {
     }
 }
 
-/// Block (thread mode) until the vsync ticker fires. Any interrupt wakes the
-/// `wfe`, so the HIGH-priority executor keeps running while we sleep here.
-#[no_mangle]
-pub extern "C" fn rust_wait_for_vsync() {
-    while !VSYNC.swap(false, Ordering::Acquire) {
-        cortex_m::asm::wfe();
-    }
-}
-
-/// Blocking millisecond delay (TouchGFX `OSWrappers::taskDelay`).
-#[no_mangle]
-pub extern "C" fn rust_delay_ms(ms: u16) {
-    let deadline = Instant::now() + Duration::from_millis(ms as u64);
-    while Instant::now() < deadline {
-        cortex_m::asm::nop();
-    }
-}
-
 #[no_mangle]
 pub extern "C" fn rust_fb0_addr() -> u32 {
     FB0_ADDR
@@ -121,23 +106,6 @@ pub extern "C" fn rust_fb1_addr() -> u32 {
 #[no_mangle]
 pub extern "C" fn rust_anim_addr() -> u32 {
     ANIM_ADDR
-}
-
-#[no_mangle]
-pub extern "C" fn rust_get_visible_framebuffer() -> u32 {
-    VISIBLE_FB.load(Ordering::Relaxed)
-}
-
-/// Point LTDC Layer1 at `addr` with an immediate reload — the TouchGFX
-/// double-buffer swap (equivalent of the H7 project's `LTDC_Layer1->CFBAR =`).
-#[no_mangle]
-pub extern "C" fn rust_set_visible_framebuffer(addr: u32) {
-    use embassy_stm32::pac::ltdc::vals::Imr;
-    use embassy_stm32::pac::LTDC;
-
-    LTDC.layer(0).cfbar().write(|w| w.set_cfbadd(addr));
-    LTDC.srcr().write(|w| w.set_imr(Imr::Reload));
-    VISIBLE_FB.store(addr, Ordering::Relaxed);
 }
 
 /// One GT911 sample in view coordinates; true while the panel is touched

@@ -1,4 +1,12 @@
-// Application-only callbacks used by the generated GUI behavior.
+// Application-only C ABI: Rust callbacks consumed by the TouchGFX Designer-
+// generated GUI code (currently Screen1View.cpp). These are inherently GUI
+// policy — the LED-service task in Rust owns the actual hardware, this
+// header only lets the GUI publish the desired state.
+//
+// The generic adapter classes provided by touchgfx-rs (touch controller,
+// button controller, HAL) require additional Rust callbacks — those are
+// declared inside the crate's own C++ and satisfied by the application's
+// Rust bridge module. This header does not need to redeclare them.
 #pragma once
 
 #include <stdbool.h>
@@ -8,6 +16,7 @@
 extern "C" {
 #endif
 
+// GUI → app publishers.
 void rust_set_green_hz(uint8_t hz);
 void rust_set_red(bool on);
 

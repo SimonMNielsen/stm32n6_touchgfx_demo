@@ -13,12 +13,6 @@
       <Text Id="cpuuse" Alignment="Left" TypographyId="Default">
         <Translation Language="GB">0</Translation>
       </Text>
-      <Text Id="__SingleUse_8313" Alignment="Left" TypographyId="Default">
-        <Translation Language="GB">&lt;value&gt;%</Translation>
-      </Text>
-      <Text Id="__SingleUse_U5E0" Alignment="Left" TypographyId="Default">
-        <Translation Language="GB">CPU:</Translation>
-      </Text>
       <Text Id="__SingleUse_EJ0Q" Alignment="Left" TypographyId="Default">
         <Translation Language="GB">ChromeART:</Translation>
       </Text>
