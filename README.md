@@ -1,9 +1,9 @@
 # STM32N6 TouchGFX Rust demo
 
-Application-specific STM32N6570-DK demo using the reusable `touchgfx-rs` crate
-from `../internal_crates/touchgfx-rs`.
+Application-specific STM32N6570-DK demo using the `touchgfx-rs` "wrapper" crate.
 
-This project now contains only:
+
+This project contains:
 
 - board startup, display/touch/button/LED setup, and memory layout;
 - framebuffer/vsync/input callbacks for this board;
